@@ -1,0 +1,38 @@
+{
+  "name": "TORENTO — Rent a Car & Bike in Sri Lanka",
+  "short_name": "TORENTO",
+  "description": "Premium car and bike rentals for exploring Sri Lanka.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ECE3D1",
+  "theme_color": "#242320",
+  "lang": "en-LK",
+  "icons": [
+    {
+      "src": "/brand/torento-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/brand/torento-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Browse vehicles",
+      "short_name": "Fleet",
+      "url": "/vehicles",
+      "icons": [{ "src": "/brand/torento-logo.png", "sizes": "512x512" }]
+    },
+    {
+      "name": "Contact",
+      "short_name": "Contact",
+      "url": "/contact",
+      "icons": [{ "src": "/brand/torento-logo.png", "sizes": "512x512" }]
+    }
+  ]
+}
