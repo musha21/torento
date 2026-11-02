@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { Fuel, Users, Gauge } from 'lucide-react';
 import { WhatsAppIcon } from '../../components/icons/WhatsAppIcon';
 import { VehicleImageCarousel } from '../../components/vehicles/VehicleImageCarousel';
@@ -11,7 +11,11 @@ import { PageLoader } from '../../components/ui/Spinner';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { SeoHead } from '../../components/seo/SeoHead';
 import { fetchVehicleBySlug, fetchPublishedVehicles, dbVehicleToLegacy } from '../../lib/vehicles';
-import { formatLkrPrice, generateVehicleInquiryUrl } from '../../lib/whatsapp';
+import {
+  formatLkrPrice,
+  generateVehicleInquiryUrl,
+  vehicleTypeLabel,
+} from '../../lib/whatsapp';
 import { VEHICLES } from '../../data/vehicles';
 import { isSupabaseConfigured } from '../../lib/supabase/client';
 import { vehiclePageMeta } from '../../lib/seo/meta';
@@ -20,6 +24,7 @@ import type { Vehicle } from '../../types/database';
 
 export default function VehicleDetailPage() {
   const { slug } = useParams<{ slug: string }>();
+  const [searchParams] = useSearchParams();
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
   const [similar, setSimilar] = useState<Vehicle[]>([]);
   const [loading, setLoading] = useState(true);
@@ -161,7 +166,15 @@ export default function VehicleDetailPage() {
   const gallery = [vehicle.main_image, ...(vehicle.gallery || [])]
     .filter(Boolean)
     .slice(0, 4) as string[];
-  const whatsappUrl = generateVehicleInquiryUrl(vehicle.name);
+  const whatsappUrl = generateVehicleInquiryUrl(vehicle.name, {
+    vehicleType: vehicleTypeLabel(
+      vehicle.categories?.slug || vehicle.category_label || undefined
+    ),
+    pricePerDay: Number(vehicle.daily_price) || undefined,
+    startDate: searchParams.get('pickup') || undefined,
+    endDate: searchParams.get('return') || undefined,
+    pickupLocation: searchParams.get('location') || undefined,
+  });
   const slugPath = vehicle.slug || slug || vehicle.id;
   const meta = vehiclePageMeta(vehicle.name, slugPath, vehicle.description);
   const jsonLd = [

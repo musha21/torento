@@ -1,10 +1,13 @@
-import React from 'react';
-import { generateGeneralInquiryUrl } from '../utils/whatsapp';
+import React, { useMemo } from 'react';
+import { useLocation } from 'react-router-dom';
+import { fleetKindFromPath, generateFleetInquiryUrl } from '../utils/whatsapp';
 import { WhatsAppIcon } from './icons/WhatsAppIcon';
 
 export const FloatingWhatsApp: React.FC = () => {
-  const whatsappUrl = generateGeneralInquiryUrl(
-    'Hello Torento! I would like to check vehicle availability and rental rates for my Sri Lanka journey.'
+  const { pathname } = useLocation();
+  const whatsappUrl = useMemo(
+    () => generateFleetInquiryUrl(fleetKindFromPath(pathname)),
+    [pathname]
   );
 
   return (

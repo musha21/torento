@@ -17,7 +17,12 @@ import {
   isRangeAvailable,
   toDateKey,
 } from '../../lib/availability';
-import { filterVehicles, formatLkrPrice, generateGeneralInquiryUrl } from '../../lib/whatsapp';
+import {
+  filterVehicles,
+  formatLkrPrice,
+  generateFleetInquiryUrl,
+  generateGeneralInquiryUrl,
+} from '../../lib/whatsapp';
 import { DEFAULT_PICKUP_LOCATION, PICKUP_LOCATIONS } from '../../lib/locations';
 import { PAGE_META } from '../../lib/seo/meta';
 import { breadcrumbJsonLd } from '../../lib/seo/structuredData';
@@ -215,9 +220,16 @@ export default function VehiclesPage() {
     [heading.title, meta.path]
   );
 
-  const waEmpty = generateGeneralInquiryUrl(
-    `Hello TORENTO! I need a vehicle from ${pickup || '…'} to ${ret || '…'} near ${locParam}.`
-  );
+  const fleetKind =
+    pathCategory === 'cars' ? 'cars' : pathCategory === 'bikes' ? 'bikes' : 'general';
+  const waEmpty =
+    pickup || ret
+      ? generateGeneralInquiryUrl(
+          `Hello TORENTO team! I need a ${
+            fleetKind === 'cars' ? 'car' : fleetKind === 'bikes' ? 'bike' : 'vehicle'
+          }${pickup || ret ? ` from ${pickup || '…'} to ${ret || '…'}` : ''} near ${locParam}. Could you please confirm availability and pricing? Thank you!`
+        )
+      : generateFleetInquiryUrl(fleetKind);
 
   return (
     <div className="min-h-screen bg-[#ECE3D1] text-[#242320] flex flex-col">

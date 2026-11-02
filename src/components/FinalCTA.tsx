@@ -8,9 +8,7 @@ import finalCtaImage from '../assets/images/final_cta_adventure_1793337219003.jp
 const FINAL_CTA_IMAGE = finalCtaImage;
 
 export const FinalCTA: React.FC = () => {
-  const whatsappUrl = generateGeneralInquiryUrl(
-    "Hello Torento! I'm ready to begin planning my Sri Lanka rental journey. Please advise on available cars and motorbikes for my travel dates."
-  );
+  const whatsappUrl = generateGeneralInquiryUrl();
 
   return (
     <section className="relative w-full min-h-[640px] lg:min-h-[720px] flex items-center justify-center overflow-hidden bg-[#242320]">
