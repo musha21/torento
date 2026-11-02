@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Download, Share, X } from 'lucide-react';
 
 const DISMISS_KEY = 'torento-pwa-install-dismissed-until';
+const INSTALLED_KEY = 'torento-pwa-installed';
 const DISMISS_DAYS = 14;
 
 interface BeforeInstallPromptEvent extends Event {
@@ -25,6 +26,22 @@ function isIosSafari(): boolean {
   return iOS && webkit && !chromeLike;
 }
 
+function isMarkedInstalled(): boolean {
+  try {
+    return localStorage.getItem(INSTALLED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function markInstalled() {
+  try {
+    localStorage.setItem(INSTALLED_KEY, '1');
+  } catch {
+    /* ignore */
+  }
+}
+
 function isDismissed(): boolean {
   try {
     const raw = localStorage.getItem(DISMISS_KEY);
@@ -43,28 +60,62 @@ function dismissForDays() {
   }
 }
 
+function shouldSkipPrompt(): boolean {
+  if (isStandalone()) {
+    markInstalled();
+    return true;
+  }
+  return isMarkedInstalled() || isDismissed();
+}
+
 export const PwaInstallBanner: React.FC = () => {
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
   const [visible, setVisible] = useState(false);
   const [iosTip, setIosTip] = useState(false);
 
   useEffect(() => {
-    if (isStandalone() || isDismissed()) return;
+    const hidePermanently = () => {
+      markInstalled();
+      setDeferred(null);
+      setVisible(false);
+      setIosTip(false);
+    };
+
+    if (shouldSkipPrompt()) return;
 
     const onBip = (e: Event) => {
       e.preventDefault();
+      if (shouldSkipPrompt()) return;
       setDeferred(e as BeforeInstallPromptEvent);
       setVisible(true);
       setIosTip(false);
     };
 
+    const onAppInstalled = () => {
+      hidePermanently();
+    };
+
+    const syncStandalone = () => {
+      if (isStandalone()) hidePermanently();
+    };
+
     window.addEventListener('beforeinstallprompt', onBip);
+    window.addEventListener('appinstalled', onAppInstalled);
+    document.addEventListener('visibilitychange', syncStandalone);
+
+    const standaloneMq = window.matchMedia('(display-mode: standalone)');
+    const onDisplayMode = () => syncStandalone();
+    if (typeof standaloneMq.addEventListener === 'function') {
+      standaloneMq.addEventListener('change', onDisplayMode);
+    } else {
+      standaloneMq.addListener(onDisplayMode);
+    }
 
     // iOS has no beforeinstallprompt — show Add to Home Screen tip after a short delay
     let iosTimer: number | undefined;
     if (isIosSafari()) {
       iosTimer = window.setTimeout(() => {
-        if (!isDismissed() && !isStandalone()) {
+        if (!shouldSkipPrompt()) {
           setIosTip(true);
           setVisible(true);
         }
@@ -73,6 +124,13 @@ export const PwaInstallBanner: React.FC = () => {
 
     return () => {
       window.removeEventListener('beforeinstallprompt', onBip);
+      window.removeEventListener('appinstalled', onAppInstalled);
+      document.removeEventListener('visibilitychange', syncStandalone);
+      if (typeof standaloneMq.removeEventListener === 'function') {
+        standaloneMq.removeEventListener('change', onDisplayMode);
+      } else {
+        standaloneMq.removeListener(onDisplayMode);
+      }
       if (iosTimer) window.clearTimeout(iosTimer);
     };
   }, []);
@@ -87,9 +145,12 @@ export const PwaInstallBanner: React.FC = () => {
   const install = async () => {
     if (!deferred) return;
     await deferred.prompt();
-    await deferred.userChoice;
+    const { outcome } = await deferred.userChoice;
     setDeferred(null);
-    setVisible(false);
+    if (outcome === 'accepted') {
+      markInstalled();
+      setVisible(false);
+    }
   };
 
   return (
