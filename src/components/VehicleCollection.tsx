@@ -12,8 +12,8 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { VEHICLES } from '../data/vehicles';
-import type { LegacyVehicle } from '../types/database';
-import { fetchLegacyVehicles } from '../lib/vehicles';
+import type { Category, LegacyVehicle } from '../types/database';
+import { fetchCategories, fetchLegacyVehicles } from '../lib/vehicles';
 import {
   formatLkrPrice,
   convertLkrToUsd,
@@ -39,11 +39,14 @@ export const VehicleCollection: React.FC<VehicleCollectionProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [currencyMode, setCurrencyMode] = useState<'LKR' | 'USD'>('LKR');
   const [fleet, setFleet] = useState<LegacyVehicle[]>(VEHICLES);
+  const [dbCategories, setDbCategories] = useState<Category[]>([]);
 
   useEffect(() => {
     let mounted = true;
-    fetchLegacyVehicles().then((list) => {
-      if (mounted && list.length) setFleet(list);
+    Promise.all([fetchLegacyVehicles(), fetchCategories()]).then(([list, cats]) => {
+      if (!mounted) return;
+      if (list.length) setFleet(list);
+      setDbCategories(cats);
     });
     return () => {
       mounted = false;
@@ -52,9 +55,10 @@ export const VehicleCollection: React.FC<VehicleCollectionProps> = ({
 
   const categories = [
     { id: 'all', label: 'ALL FLEET' },
-    { id: 'cars', label: 'CARS' },
-    { id: 'bikes', label: 'BIKES' },
-    { id: 'premium', label: 'PREMIUM' },
+    ...dbCategories.map((c) => ({
+      id: c.slug,
+      label: c.name.toUpperCase(),
+    })),
   ];
 
   const filteredVehicles = filterVehicles(fleet, activeCategory, searchQuery);

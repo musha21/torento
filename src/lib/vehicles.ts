@@ -1,20 +1,50 @@
 import { tryGetSupabase, isSupabaseConfigured } from './supabase/client';
-import type { LegacyVehicle, Vehicle } from '../types/database';
+import type { Category, LegacyVehicle, Vehicle } from '../types/database';
 import { VEHICLES as FALLBACK_VEHICLES } from '../data/vehicles';
+
+function fallbackCategoriesFromFleet(): Category[] {
+  const seen = new Map<string, Category>();
+  for (const v of FALLBACK_VEHICLES) {
+    const slug = v.category;
+    if (!slug || seen.has(slug)) continue;
+    seen.set(slug, {
+      id: slug,
+      name: slug.charAt(0).toUpperCase() + slug.slice(1),
+      slug,
+      description: null,
+      image: null,
+      created_at: '',
+    });
+  }
+  return Array.from(seen.values()).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** Same source of truth as admin: Supabase `categories` table. */
+export async function fetchCategories(): Promise<Category[]> {
+  const supabase = tryGetSupabase();
+  if (!supabase || !isSupabaseConfigured) {
+    return fallbackCategoriesFromFleet();
+  }
+
+  const { data, error } = await supabase.from('categories').select('*').order('name');
+  if (error || !data?.length) {
+    if (error) console.warn('Failed to fetch categories:', error.message);
+    return fallbackCategoriesFromFleet();
+  }
+  return data as Category[];
+}
 
 export function dbVehicleToLegacy(v: Vehicle): LegacyVehicle {
   const specs = v.specifications || {};
-  const categorySlug = (v.categories as { slug?: string } | null | undefined)?.slug
-    || (v.category_label?.toLowerCase().includes('bike') || v.category_label?.toLowerCase().includes('scooter')
+  const joinedSlug = (v.categories as { slug?: string } | null | undefined)?.slug;
+  const category =
+    joinedSlug ||
+    (v.category_label?.toLowerCase().includes('bike') ||
+    v.category_label?.toLowerCase().includes('scooter')
       ? 'bikes'
       : v.badge?.toLowerCase().includes('premium')
         ? 'premium'
         : 'cars');
-
-  let category: 'cars' | 'bikes' | 'premium' = 'cars';
-  if (categorySlug === 'bikes' || categorySlug === 'premium' || categorySlug === 'cars') {
-    category = categorySlug;
-  }
 
   const availabilityMap: Record<string, string> = {
     available: 'Available Today',
@@ -95,9 +125,8 @@ export async function fetchLegacyVehicles(): Promise<LegacyVehicle[]> {
   }
   return vehicles.map((v) => {
     const legacy = dbVehicleToLegacy(v);
-    const cat = v.categories?.slug;
-    if (cat === 'cars' || cat === 'bikes' || cat === 'premium') {
-      legacy.category = cat;
+    if (v.categories?.slug) {
+      legacy.category = v.categories.slug;
     }
     return legacy;
   });

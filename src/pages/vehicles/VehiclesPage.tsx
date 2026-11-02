@@ -10,7 +10,7 @@ import { PageLoader } from '../../components/ui/Spinner';
 import { SeoHead } from '../../components/seo/SeoHead';
 import { WhatsAppIcon } from '../../components/icons/WhatsAppIcon';
 import { VehicleImageCarousel } from '../../components/vehicles/VehicleImageCarousel';
-import { fetchLegacyVehicles } from '../../lib/vehicles';
+import { fetchCategories, fetchLegacyVehicles } from '../../lib/vehicles';
 import {
   expandUnavailableDays,
   fetchVehicleUnavailableRanges,
@@ -26,7 +26,13 @@ import {
 import { DEFAULT_PICKUP_LOCATION, PICKUP_LOCATIONS } from '../../lib/locations';
 import { PAGE_META } from '../../lib/seo/meta';
 import { breadcrumbJsonLd } from '../../lib/seo/structuredData';
-import type { LegacyVehicle } from '../../types/database';
+import type { Category, LegacyVehicle } from '../../types/database';
+
+function tabPathForSlug(slug: string): string {
+  if (slug === 'cars') return '/cars';
+  if (slug === 'bikes') return '/bikes';
+  return '/vehicles';
+}
 
 function categoryFromPath(pathname: string): string {
   if (pathname.startsWith('/cars')) return 'cars';
@@ -78,12 +84,25 @@ export default function VehiclesPage() {
   const heading = headingForPath(location.pathname);
 
   const [fleet, setFleet] = useState<LegacyVehicle[]>([]);
+  const [dbCategories, setDbCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [checkingAvail, setCheckingAvail] = useState(false);
   const [availableIds, setAvailableIds] = useState<Set<string> | null>(null);
   const [category, setCategory] = useState(pathCategory);
   const [query, setQuery] = useState('');
   const [maxPrice, setMaxPrice] = useState<number | ''>('');
+
+  const categoryTabs = useMemo(
+    () => [
+      { id: 'all', to: '/vehicles', label: 'ALL' },
+      ...dbCategories.map((c) => ({
+        id: c.slug,
+        to: tabPathForSlug(c.slug),
+        label: c.name.toUpperCase(),
+      })),
+    ],
+    [dbCategories]
+  );
 
   const pickup = searchParams.get('pickup') || '';
   const ret = searchParams.get('return') || '';
@@ -99,7 +118,10 @@ export default function VehiclesPage() {
   );
 
   useEffect(() => {
-    setCategory(pathCategory);
+    // Path shortcuts only — leave other tab selections alone on /vehicles
+    if (pathCategory === 'cars' || pathCategory === 'bikes') {
+      setCategory(pathCategory);
+    }
   }, [pathCategory]);
 
   useEffect(() => {
@@ -115,9 +137,19 @@ export default function VehiclesPage() {
   }, [pickup, ret, locParam]);
 
   useEffect(() => {
-    fetchLegacyVehicles()
-      .then(setFleet)
-      .finally(() => setLoading(false));
+    let mounted = true;
+    Promise.all([fetchLegacyVehicles(), fetchCategories()])
+      .then(([vehicles, cats]) => {
+        if (!mounted) return;
+        setFleet(vehicles);
+        setDbCategories(cats);
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -328,16 +360,11 @@ export default function VehiclesPage() {
 
           <div className="flex flex-col lg:flex-row gap-4 mb-8">
             <div className="flex flex-wrap gap-2">
-              {[
-                { id: 'all', to: '/vehicles', label: 'ALL' },
-                { id: 'cars', to: '/cars', label: 'cars' },
-                { id: 'bikes', to: '/bikes', label: 'bikes' },
-                { id: 'premium', to: '/vehicles', label: 'premium' },
-              ].map((c) => (
+              {categoryTabs.map((c) => (
                 <Link
                   key={c.id}
                   to={{
-                    pathname: c.id === 'premium' ? '/vehicles' : c.to,
+                    pathname: c.to,
                     search: searchParams.toString() ? `?${searchParams.toString()}` : '',
                   }}
                   onClick={() => setCategory(c.id)}
