@@ -81,7 +81,11 @@ export const AuthShell: React.FC<AuthShellProps> = ({
         >
           <div className="mb-8 lg:hidden">
             <Link to="/" className="inline-block">
-              <img src="/brand/torento-logo.png" alt="TORENTO" className="h-12 object-contain" />
+              <img
+                src="/brand/torento-logo-on-black.png"
+                alt="TORENTO"
+                className="h-12 object-contain"
+              />
             </Link>
           </div>
 

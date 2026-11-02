@@ -7,15 +7,13 @@ import { FloatingWhatsApp } from '../components/FloatingWhatsApp';
 import { SeoHead } from '../components/seo/SeoHead';
 import { PAGE_META } from '../lib/seo/meta';
 import { organizationJsonLd } from '../lib/seo/structuredData';
-import { generateGeneralInquiryUrl } from '../utils/whatsapp';
+import { generateFleetInquiryUrl } from '../utils/whatsapp';
 import { useSiteSettings } from '../contexts/SiteSettingsContext';
 
 export default function ContactPage() {
   const meta = PAGE_META.contact;
   const { whatsappDigits, whatsappDisplay } = useSiteSettings();
-  const whatsappUrl = generateGeneralInquiryUrl(
-    "Hello TORENTO! I'd like to enquire about vehicle availability and booking."
-  );
+  const whatsappUrl = generateFleetInquiryUrl('contact');
   const jsonLd = useMemo(() => [organizationJsonLd()], [whatsappDigits]);
 
   return (

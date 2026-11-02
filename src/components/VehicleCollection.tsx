@@ -20,6 +20,7 @@ import {
   generateVehicleInquiryUrl,
   generateGeneralInquiryUrl,
   filterVehicles,
+  vehicleTypeLabel,
 } from '../utils/whatsapp';
 import { WhatsAppIcon } from './icons/WhatsAppIcon';
 import { VehicleImageCarousel } from './vehicles/VehicleImageCarousel';
@@ -182,7 +183,10 @@ export const VehicleCollection: React.FC<VehicleCollectionProps> = ({
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {filteredVehicles.map((vehicle, cardIndex) => {
-              const directWhatsAppUrl = generateVehicleInquiryUrl(vehicle.name);
+              const directWhatsAppUrl = generateVehicleInquiryUrl(vehicle.name, {
+                vehicleType: vehicleTypeLabel(vehicle.category),
+                pricePerDay: vehicle.dailyRateLkr,
+              });
               const cardImages = [vehicle.imageUrl, ...(vehicle.gallery || [])].filter(Boolean);
 
               return (
@@ -324,9 +328,7 @@ export const VehicleCollection: React.FC<VehicleCollectionProps> = ({
           </div>
 
           <a
-            href={generateGeneralInquiryUrl(
-              'Hello TORENTO! I have a special fleet inquiry for my Sri Lanka trip.'
-            )}
+            href={generateGeneralInquiryUrl()}
             target="_blank"
             rel="noopener noreferrer"
             className="text-xs uppercase tracking-[0.18em] font-bold text-[#A86438] hover:text-[#43282A] underline whitespace-nowrap cursor-pointer"

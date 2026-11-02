@@ -12,7 +12,11 @@ import {
   fetchBlockedDaysForMonth,
   isRangeAvailable,
 } from '../../lib/availability';
-import { formatLkrPrice, generateVehicleInquiryUrl } from '../../lib/whatsapp';
+import {
+  formatLkrPrice,
+  generateVehicleInquiryUrl,
+  vehicleTypeLabel,
+} from '../../lib/whatsapp';
 import { DEFAULT_PICKUP_LOCATION } from '../../lib/locations';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
@@ -72,6 +76,7 @@ export const BookingRequestForm: React.FC<Props> = ({ vehicle }) => {
 
   const pickupDate = watch('pickupDate');
   const returnDate = watch('returnDate');
+  const pickupLocation = watch('pickupLocation');
 
   useEffect(() => {
     let cancelled = false;
@@ -200,7 +205,17 @@ export const BookingRequestForm: React.FC<Props> = ({ vehicle }) => {
             View my bookings
           </button>
           <a
-            href={generateVehicleInquiryUrl(vehicle.name)}
+            href={generateVehicleInquiryUrl(vehicle.name, {
+              vehicleType: vehicleTypeLabel(
+                vehicle.categories?.slug || vehicle.category_label || undefined
+              ),
+              pricePerDay: Number(vehicle.daily_price) || undefined,
+              startDate: pickupDate || undefined,
+              endDate: returnDate || undefined,
+              pickupLocation: pickupLocation || undefined,
+              rentalDays: estimate?.days,
+              customNotes: reference ? `Booking reference: ${reference}` : undefined,
+            })}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 px-4 py-2 border border-[#25D366] text-[#25D366] text-sm rounded-lg"

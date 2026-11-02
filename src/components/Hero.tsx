@@ -30,9 +30,7 @@ export const Hero: React.FC<HeroProps> = ({ onExploreVehicles }) => {
   const [customLocation, setCustomLocation] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  const whatsappUrl = generateGeneralInquiryUrl(
-    "Hello Torento! I'm planning my Sri Lanka journey and would like to inquire about vehicle availability and booking requirements."
-  );
+  const whatsappUrl = generateGeneralInquiryUrl();
 
   const headlineLines = ['THE ROAD', 'IS YOURS.'];
 

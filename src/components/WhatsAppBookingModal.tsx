@@ -2,7 +2,12 @@ import React, { useState } from 'react';
 import { X, Calendar, MapPin, User, Car, Clock } from 'lucide-react';
 import { WhatsAppIcon } from './icons/WhatsAppIcon';
 import type { LegacyVehicle } from '../types/database';
-import { generateVehicleInquiryUrl, formatLkrPrice, convertLkrToUsd } from '../utils/whatsapp';
+import {
+  generateVehicleInquiryUrl,
+  formatLkrPrice,
+  convertLkrToUsd,
+  vehicleTypeLabel,
+} from '../utils/whatsapp';
 
 interface WhatsAppBookingModalProps {
   vehicle: LegacyVehicle | null;
@@ -28,8 +33,17 @@ export const WhatsAppBookingModal: React.FC<WhatsAppBookingModalProps> = ({
 
   const handleLaunchWhatsApp = (e: React.FormEvent) => {
     e.preventDefault();
+    let endDate: string | undefined;
+    if (startDate && /^\d{4}-\d{2}-\d{2}/.test(startDate)) {
+      const d = new Date(`${startDate}T12:00:00`);
+      d.setDate(d.getDate() + Math.max(durationNumber - 1, 0));
+      endDate = d.toISOString().slice(0, 10);
+    }
     const url = generateVehicleInquiryUrl(vehicle.name, {
+      vehicleType: vehicleTypeLabel(vehicle.category),
+      pricePerDay: vehicle.dailyRateLkr,
       startDate: startDate || 'Flexible / Upon arrival',
+      endDate,
       rentalDays: durationNumber,
       pickupLocation,
       driverOption,
