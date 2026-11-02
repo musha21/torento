@@ -149,7 +149,7 @@ export interface LegacyVehicle {
   /** Supabase UUID when loaded from DB (for availability RPCs) */
   dbId?: string;
   name: string;
-  category: 'cars' | 'bikes' | 'premium';
+  category: string;
   categoryLabel: string;
   dailyRateLkr: number;
   transmission: 'Automatic' | 'Manual';

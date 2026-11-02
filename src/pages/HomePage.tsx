@@ -23,7 +23,7 @@ export default function HomePage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const jsonLd = useMemo(() => [organizationJsonLd(), websiteJsonLd()], []);
 
-  const handleCategorySelect = (cat: 'cars' | 'bikes' | 'premium') => {
+  const handleCategorySelect = (cat: string) => {
     setActiveCategory(cat);
     const element = document.getElementById('vehicles');
     if (element) element.scrollIntoView({ behavior: 'smooth' });
