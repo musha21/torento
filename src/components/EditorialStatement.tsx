@@ -1,8 +1,10 @@
 import React from 'react';
 import { motion } from 'motion/react';
+import circleCoastalBike from '../assets/images/circle_coastal_bike_1793337217915.jpg';
+import circleMountainCar from '../assets/images/circle_mountain_car_1793337218652.jpg';
 
-const CIRCLE_COASTAL_BIKE = '/src/assets/images/circle_coastal_bike_1793337217915.jpg';
-const CIRCLE_MOUNTAIN_CAR = '/src/assets/images/circle_mountain_car_1793337218652.jpg';
+const CIRCLE_COASTAL_BIKE = circleCoastalBike;
+const CIRCLE_MOUNTAIN_CAR = circleMountainCar;
 
 export const EditorialStatement: React.FC = () => {
   return (

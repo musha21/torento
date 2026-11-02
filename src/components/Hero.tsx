@@ -5,8 +5,9 @@ import { ArrowDown, ChevronRight, MapPin } from 'lucide-react';
 import { generateGeneralInquiryUrl } from '../utils/whatsapp';
 import { WhatsAppIcon } from './icons/WhatsAppIcon';
 import { DEFAULT_PICKUP_LOCATION, PICKUP_LOCATIONS } from '../lib/locations';
+import heroBg from '../assets/images/hero_srilanka_road_1793337217686.jpg';
 
-const HERO_BG_IMAGE = '/src/assets/images/hero_srilanka_road_1793337217686.jpg';
+const HERO_BG_IMAGE = heroBg;
 
 interface HeroProps {
   onExploreVehicles?: () => void;

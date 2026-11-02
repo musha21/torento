@@ -3,8 +3,9 @@ import { motion } from 'motion/react';
 import { ChevronRight, Compass } from 'lucide-react';
 import { WhatsAppIcon } from './icons/WhatsAppIcon';
 import { generateGeneralInquiryUrl } from '../utils/whatsapp';
+import finalCtaImage from '../assets/images/final_cta_adventure_1793337219003.jpg';
 
-const FINAL_CTA_IMAGE = '/src/assets/images/final_cta_adventure_1793337219003.jpg';
+const FINAL_CTA_IMAGE = finalCtaImage;
 
 export const FinalCTA: React.FC = () => {
   const whatsappUrl = generateGeneralInquiryUrl(
