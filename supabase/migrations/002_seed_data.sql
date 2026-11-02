@@ -190,7 +190,7 @@ INSERT INTO public.website_settings (setting_key, setting_value) VALUES
   '{
     "heading": "THE ROAD IS YOURS",
     "description": "YOUR JOURNEY. YOUR FREEDOM. Premium car and bike rentals across Sri Lanka.",
-    "background_image": "/src/assets/images/hero_srilanka_road_1793337217686.jpg"
+    "background_image": ""
   }'::jsonb
 ),
 (
