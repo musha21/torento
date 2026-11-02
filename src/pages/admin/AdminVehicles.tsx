@@ -57,6 +57,10 @@ function splitImagesForSave(images: string[]): { main_image: string | null; gall
   };
 }
 
+function isVehicleHidden(v: Vehicle): boolean {
+  return v.availability_status === 'hidden' || !v.is_published;
+}
+
 export default function AdminVehicles() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -66,8 +70,9 @@ export default function AdminVehicles() {
   const [editing, setEditing] = useState<Vehicle | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [hideId, setHideId] = useState<string | null>(null);
   const [uploadingSlot, setUploadingSlot] = useState<number | null>(null);
+  const [batchUploading, setBatchUploading] = useState(false);
 
   const load = async () => {
     const supabase = tryGetSupabase();
@@ -138,9 +143,29 @@ export default function AdminVehicles() {
     });
   };
 
-  const onUpload = async (slot: number, file: File) => {
+  const setPublished = (checked: boolean) => {
+    setForm((f) => ({
+      ...f,
+      is_published: checked,
+      availability_status: checked
+        ? f.availability_status === 'hidden'
+          ? 'available'
+          : f.availability_status
+        : 'hidden',
+    }));
+  };
+
+  const setAvailability = (status: AvailabilityStatus) => {
+    setForm((f) => ({
+      ...f,
+      availability_status: status,
+      is_published: status === 'hidden' ? false : f.is_published,
+    }));
+  };
+
+  const uploadToSlot = async (slot: number, file: File, silent = false): Promise<boolean> => {
     const supabase = tryGetSupabase();
-    if (!supabase) return;
+    if (!supabase) return false;
     setUploadingSlot(slot);
     const folder = form.slug || slugify(form.name) || editing?.id || 'draft';
     const path = `${folder}/${slot}-${Date.now()}-${file.name.replace(/\s+/g, '-')}`;
@@ -148,12 +173,42 @@ export default function AdminVehicles() {
     if (error) {
       toast(error.message, 'error');
       setUploadingSlot(null);
-      return;
+      return false;
     }
     const { data } = supabase.storage.from('vehicle-images').getPublicUrl(path);
     setImageSlot(slot, data.publicUrl);
     setUploadingSlot(null);
-    toast(`Image ${slot + 1} uploaded`, 'success');
+    if (!silent) toast(`Image ${slot + 1} uploaded`, 'success');
+    return true;
+  };
+
+  const onUpload = async (slot: number, file: File) => {
+    await uploadToSlot(slot, file, false);
+  };
+
+  const onMultiUpload = async (files: FileList | null) => {
+    if (!files?.length) return;
+    const selected = Array.from(files).slice(0, MAX_IMAGES);
+    const emptySlots = form.images
+      .map((url, index) => ({ url, index }))
+      .filter((s) => !s.url.trim())
+      .map((s) => s.index);
+
+    const slots =
+      emptySlots.length > 0
+        ? emptySlots.slice(0, selected.length)
+        : Array.from({ length: Math.min(selected.length, MAX_IMAGES) }, (_, i) => i);
+
+    setBatchUploading(true);
+    let ok = 0;
+    for (let i = 0; i < slots.length; i++) {
+      const file = selected[i];
+      if (!file) break;
+      const success = await uploadToSlot(slots[i], file, true);
+      if (success) ok += 1;
+    }
+    setBatchUploading(false);
+    if (ok > 0) toast(`${ok} image${ok === 1 ? '' : 's'} uploaded`, 'success');
   };
 
   const save = async (e: React.FormEvent) => {
@@ -221,17 +276,31 @@ export default function AdminVehicles() {
     load();
   };
 
-  const confirmDelete = async () => {
+  const confirmHide = async () => {
     const supabase = tryGetSupabase();
-    if (!supabase || !deleteId) return;
+    if (!supabase || !hideId) return;
     const { error } = await supabase
       .from('vehicles')
       .update({ is_published: false, availability_status: 'hidden' })
-      .eq('id', deleteId);
-    setDeleteId(null);
+      .eq('id', hideId);
+    setHideId(null);
     if (error) toast(error.message, 'error');
     else {
       toast('Vehicle hidden from website', 'success');
+      load();
+    }
+  };
+
+  const showVehicle = async (v: Vehicle) => {
+    const supabase = tryGetSupabase();
+    if (!supabase) return;
+    const { error } = await supabase
+      .from('vehicles')
+      .update({ is_published: true, availability_status: 'available' })
+      .eq('id', v.id);
+    if (error) toast(error.message, 'error');
+    else {
+      toast('Vehicle visible on website', 'success');
       load();
     }
   };
@@ -240,21 +309,56 @@ export default function AdminVehicles() {
 
   const showForm = editing !== null || form.name !== '' || form.category_id !== '';
 
+  const actionButtons = (v: Vehicle) => {
+    const hidden = isVehicleHidden(v);
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => openEdit(v)}
+          className="min-h-[44px] px-3 py-2 text-sm text-[#A86438] font-medium hover:underline"
+        >
+          Edit
+        </button>
+        {hidden ? (
+          <button
+            type="button"
+            onClick={() => void showVehicle(v)}
+            className="min-h-[44px] px-3 py-2 text-sm text-emerald-800 font-medium hover:underline"
+          >
+            Show
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setHideId(v.id)}
+            className="min-h-[44px] px-3 py-2 text-sm text-red-800 font-medium hover:underline"
+          >
+            Hide
+          </button>
+        )}
+      </div>
+    );
+  };
+
   return (
-    <div>
+    <div className="min-w-0">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-        <h1 className="font-editorial-heading text-3xl">Vehicle Management</h1>
+        <h1 className="font-editorial-heading text-2xl sm:text-3xl">Vehicle Management</h1>
         <button
           type="button"
           onClick={openCreate}
-          className="px-4 py-2 bg-[#A86438] text-white rounded-lg text-sm font-semibold"
+          className="min-h-[44px] px-4 py-2 bg-[#A86438] text-white rounded-lg text-sm font-semibold"
         >
           Add vehicle
         </button>
       </div>
 
       {(showForm || editing) && (
-        <form onSubmit={save} className="bg-white/70 border border-[#D8C9AD] rounded-xl p-6 mb-8 grid sm:grid-cols-2 gap-4">
+        <form
+          onSubmit={save}
+          className="bg-white/70 border border-[#D8C9AD] rounded-xl p-4 sm:p-6 mb-8 grid sm:grid-cols-2 gap-4 min-w-0"
+        >
           <h2 className="sm:col-span-2 font-editorial-heading text-xl">
             {editing ? 'Edit vehicle' : 'New vehicle'}
           </h2>
@@ -278,23 +382,23 @@ export default function AdminVehicles() {
               ['mileage_limit', 'Mileage limit'],
             ] as const
           ).map(([key, label]) => (
-            <div key={key}>
+            <div key={key} className="min-w-0">
               <label className="text-xs uppercase tracking-wider text-[#43282A]/70">{label}</label>
               <input
                 value={form[key] as string}
                 onChange={(e) => setForm({ ...form, [key]: e.target.value })}
-                className="mt-1 w-full border border-[#43282A]/20 px-3 py-2 rounded-lg text-sm"
+                className="mt-1 w-full min-w-0 border border-[#43282A]/20 px-3 py-2.5 rounded-lg text-sm"
                 required={key === 'name' || key === 'daily_price'}
               />
             </div>
           ))}
 
-          <div>
+          <div className="min-w-0">
             <label className="text-xs uppercase tracking-wider text-[#43282A]/70">Category</label>
             <select
               value={form.category_id}
               onChange={(e) => setForm({ ...form, category_id: e.target.value })}
-              className="mt-1 w-full border border-[#43282A]/20 px-3 py-2 rounded-lg text-sm"
+              className="mt-1 w-full border border-[#43282A]/20 px-3 py-2.5 rounded-lg text-sm"
               required
             >
               <option value="">Select…</option>
@@ -305,14 +409,12 @@ export default function AdminVehicles() {
               ))}
             </select>
           </div>
-          <div>
+          <div className="min-w-0">
             <label className="text-xs uppercase tracking-wider text-[#43282A]/70">Availability</label>
             <select
               value={form.availability_status}
-              onChange={(e) =>
-                setForm({ ...form, availability_status: e.target.value as AvailabilityStatus })
-              }
-              className="mt-1 w-full border border-[#43282A]/20 px-3 py-2 rounded-lg text-sm"
+              onChange={(e) => setAvailability(e.target.value as AvailabilityStatus)}
+              className="mt-1 w-full border border-[#43282A]/20 px-3 py-2.5 rounded-lg text-sm"
             >
               {['available', 'unavailable', 'maintenance', 'hidden'].map((s) => (
                 <option key={s} value={s}>
@@ -321,57 +423,71 @@ export default function AdminVehicles() {
               ))}
             </select>
           </div>
-          <div>
+          <div className="min-w-0">
             <label className="text-xs uppercase tracking-wider text-[#43282A]/70">Transmission</label>
             <select
               value={form.transmission}
               onChange={(e) => setForm({ ...form, transmission: e.target.value })}
-              className="mt-1 w-full border border-[#43282A]/20 px-3 py-2 rounded-lg text-sm"
+              className="mt-1 w-full border border-[#43282A]/20 px-3 py-2.5 rounded-lg text-sm"
             >
               <option>Automatic</option>
               <option>Manual</option>
             </select>
           </div>
-          <div>
+          <div className="min-w-0">
             <label className="text-xs uppercase tracking-wider text-[#43282A]/70">Fuel</label>
             <select
               value={form.fuel_type}
               onChange={(e) => setForm({ ...form, fuel_type: e.target.value })}
-              className="mt-1 w-full border border-[#43282A]/20 px-3 py-2 rounded-lg text-sm"
+              className="mt-1 w-full border border-[#43282A]/20 px-3 py-2.5 rounded-lg text-sm"
             >
               <option>Petrol</option>
               <option>Diesel</option>
               <option>Hybrid</option>
             </select>
           </div>
-          <div className="sm:col-span-2">
+          <div className="sm:col-span-2 min-w-0">
             <label className="text-xs uppercase tracking-wider text-[#43282A]/70">Description</label>
             <textarea
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
               rows={3}
-              className="mt-1 w-full border border-[#43282A]/20 px-3 py-2 rounded-lg text-sm"
+              className="mt-1 w-full border border-[#43282A]/20 px-3 py-2.5 rounded-lg text-sm"
             />
           </div>
-          <div className="sm:col-span-2 space-y-3">
-            <div className="flex items-end justify-between gap-2">
-              <div>
+          <div className="sm:col-span-2 space-y-3 min-w-0">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div className="min-w-0">
                 <label className="text-xs uppercase tracking-wider text-[#43282A]/70">
                   Photos (max {MAX_IMAGES})
                 </label>
                 <p className="text-xs text-[#43282A]/60 mt-0.5">
-                  Slot 1 is the main image. Paste a URL or upload for each slot.
+                  Select up to 4 images at once, or fill each slot. Slot 1 is the main image.
                 </p>
               </div>
+              <label className="inline-flex items-center justify-center min-h-[44px] px-4 py-2 rounded-lg border border-[#A86438]/40 bg-[#A86438]/10 text-sm font-medium text-[#A86438] cursor-pointer shrink-0">
+                {batchUploading ? 'Uploading…' : 'Add up to 4 photos'}
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  disabled={batchUploading}
+                  onChange={(e) => {
+                    void onMultiUpload(e.target.files);
+                    e.target.value = '';
+                  }}
+                  className="sr-only"
+                />
+              </label>
             </div>
-            <div className="grid sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               {form.images.map((url, index) => (
                 <div
                   key={index}
-                  className="border border-[#43282A]/15 rounded-xl p-3 bg-white/80 space-y-2"
+                  className="border border-[#43282A]/15 rounded-xl p-2.5 sm:p-3 bg-white/80 space-y-2 min-w-0"
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-[#43282A]/70">
+                    <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-[#43282A]/70 truncate">
                       Image {index + 1}
                       {index === 0 ? ' · Main' : ''}
                     </p>
@@ -379,13 +495,13 @@ export default function AdminVehicles() {
                       <button
                         type="button"
                         onClick={() => setImageSlot(index, '')}
-                        className="text-[11px] text-red-800 hover:underline"
+                        className="text-[11px] text-red-800 hover:underline shrink-0 min-h-[32px]"
                       >
                         Clear
                       </button>
                     ) : null}
                   </div>
-                  <div className="aspect-[4/3] rounded-lg overflow-hidden bg-[#E6DCC8]/50 border border-[#43282A]/10">
+                  <div className="aspect-[4/3] max-h-28 sm:max-h-none rounded-lg overflow-hidden bg-[#E6DCC8]/50 border border-[#43282A]/10">
                     {url ? (
                       <img src={url} alt="" className="w-full h-full object-cover" />
                     ) : (
@@ -398,7 +514,7 @@ export default function AdminVehicles() {
                     value={url}
                     onChange={(e) => setImageSlot(index, e.target.value)}
                     placeholder="https://… image URL"
-                    className="w-full border border-[#43282A]/20 px-3 py-2 rounded-lg text-sm"
+                    className="w-full min-w-0 border border-[#43282A]/20 px-2.5 py-2 rounded-lg text-xs sm:text-sm"
                   />
                   <input
                     type="file"
@@ -408,7 +524,7 @@ export default function AdminVehicles() {
                       if (file) void onUpload(index, file);
                       e.target.value = '';
                     }}
-                    className="block w-full text-xs"
+                    className="block w-full text-[10px] sm:text-xs min-w-0"
                   />
                   {uploadingSlot === index && (
                     <p className="text-xs text-[#A86438]">Uploading…</p>
@@ -417,7 +533,7 @@ export default function AdminVehicles() {
               ))}
             </div>
           </div>
-          <label className="flex items-center gap-2 text-sm">
+          <label className="flex items-center gap-2 text-sm min-h-[44px]">
             <input
               type="checkbox"
               checked={form.air_conditioning}
@@ -425,7 +541,7 @@ export default function AdminVehicles() {
             />
             Air conditioning
           </label>
-          <label className="flex items-center gap-2 text-sm">
+          <label className="flex items-center gap-2 text-sm min-h-[44px]">
             <input
               type="checkbox"
               checked={form.is_featured}
@@ -433,19 +549,19 @@ export default function AdminVehicles() {
             />
             Featured
           </label>
-          <label className="flex items-center gap-2 text-sm">
+          <label className="flex items-center gap-2 text-sm min-h-[44px] sm:col-span-2">
             <input
               type="checkbox"
               checked={form.is_published}
-              onChange={(e) => setForm({ ...form, is_published: e.target.checked })}
+              onChange={(e) => setPublished(e.target.checked)}
             />
-            Published
+            Published (visible on website)
           </label>
-          <div className="sm:col-span-2 flex gap-3">
+          <div className="sm:col-span-2 flex flex-wrap gap-3">
             <button
               type="submit"
               disabled={saving}
-              className="px-5 py-2.5 bg-[#A86438] text-white rounded-lg text-sm font-semibold disabled:opacity-60"
+              className="min-h-[44px] px-5 py-2.5 bg-[#A86438] text-white rounded-lg text-sm font-semibold disabled:opacity-60"
             >
               {saving ? 'Saving…' : 'Save vehicle'}
             </button>
@@ -455,7 +571,7 @@ export default function AdminVehicles() {
                 setEditing(null);
                 setForm({ ...emptyForm, images: ['', '', '', ''] });
               }}
-              className="px-5 py-2.5 border border-[#43282A]/30 rounded-lg text-sm"
+              className="min-h-[44px] px-5 py-2.5 border border-[#43282A]/30 rounded-lg text-sm"
             >
               Cancel
             </button>
@@ -466,61 +582,107 @@ export default function AdminVehicles() {
       {vehicles.length === 0 ? (
         <EmptyState title="No vehicles" description="Add your first fleet vehicle." />
       ) : (
-        <div className="overflow-x-auto bg-white/70 border border-[#D8C9AD] rounded-xl">
-          <table className="w-full text-sm">
-            <thead className="bg-[#E6DCC8]/60 text-left">
-              <tr>
-                <th className="p-3">Vehicle</th>
-                <th className="p-3">Price</th>
-                <th className="p-3">Status</th>
-                <th className="p-3">Published</th>
-                <th className="p-3">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {vehicles.map((v) => (
-                <tr key={v.id} className="border-t border-[#D8C9AD]/60">
-                  <td className="p-3">
-                    <div className="flex items-center gap-3">
-                      {v.main_image && (
-                        <img src={v.main_image} alt="" className="w-12 h-12 object-cover rounded" />
-                      )}
-                      <div>
-                        <p className="font-medium">{v.name}</p>
-                        <p className="text-xs text-[#43282A]/60">{v.slug}</p>
-                      </div>
+        <>
+          {/* Mobile cards */}
+          <div className="md:hidden space-y-3">
+            {vehicles.map((v) => {
+              const hidden = isVehicleHidden(v);
+              return (
+                <article
+                  key={v.id}
+                  className={`bg-white/70 border rounded-xl p-4 space-y-3 ${
+                    hidden ? 'border-[#43282A]/15 opacity-80' : 'border-[#D8C9AD]'
+                  }`}
+                >
+                  <div className="flex items-start gap-3 min-w-0">
+                    {v.main_image ? (
+                      <img
+                        src={v.main_image}
+                        alt=""
+                        className="w-14 h-14 object-cover rounded-lg shrink-0"
+                      />
+                    ) : (
+                      <div className="w-14 h-14 rounded-lg bg-[#E6DCC8]/60 shrink-0" />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium truncate">{v.name}</p>
+                      <p className="text-xs text-[#43282A]/60 truncate">{v.slug}</p>
+                      <p className="text-sm mt-1">{formatLkrPrice(Number(v.daily_price))}/day</p>
                     </div>
-                  </td>
-                  <td className="p-3">{formatLkrPrice(Number(v.daily_price))}</td>
-                  <td className="p-3 capitalize">{v.availability_status}</td>
-                  <td className="p-3">{v.is_published ? 'Yes' : 'No'}</td>
-                  <td className="p-3 space-x-2 whitespace-nowrap">
-                    <button type="button" onClick={() => openEdit(v)} className="text-[#A86438] hover:underline">
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDeleteId(v.id)}
-                      className="text-red-800 hover:underline"
-                    >
-                      Hide
-                    </button>
-                  </td>
+                  </div>
+                  <div className="flex flex-wrap gap-2 text-xs">
+                    <span className="px-2 py-1 rounded-md bg-[#E6DCC8]/70 capitalize">
+                      {v.availability_status}
+                    </span>
+                    <span className="px-2 py-1 rounded-md bg-[#E6DCC8]/70">
+                      {v.is_published ? 'Published' : 'Unpublished'}
+                    </span>
+                    {hidden && (
+                      <span className="px-2 py-1 rounded-md bg-red-100 text-red-900">Hidden</span>
+                    )}
+                  </div>
+                  {actionButtons(v)}
+                </article>
+              );
+            })}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden md:block overflow-x-auto bg-white/70 border border-[#D8C9AD] rounded-xl">
+            <table className="w-full text-sm table-fixed">
+              <thead className="bg-[#E6DCC8]/60 text-left">
+                <tr>
+                  <th className="p-3 w-[36%]">Vehicle</th>
+                  <th className="p-3 w-[16%]">Price</th>
+                  <th className="p-3 w-[16%]">Status</th>
+                  <th className="p-3 w-[12%]">Published</th>
+                  <th className="p-3 w-[20%]">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {vehicles.map((v) => {
+                  const hidden = isVehicleHidden(v);
+                  return (
+                    <tr
+                      key={v.id}
+                      className={`border-t border-[#D8C9AD]/60 ${hidden ? 'opacity-75' : ''}`}
+                    >
+                      <td className="p-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          {v.main_image && (
+                            <img
+                              src={v.main_image}
+                              alt=""
+                              className="w-12 h-12 object-cover rounded shrink-0"
+                            />
+                          )}
+                          <div className="min-w-0">
+                            <p className="font-medium truncate">{v.name}</p>
+                            <p className="text-xs text-[#43282A]/60 truncate">{v.slug}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-3">{formatLkrPrice(Number(v.daily_price))}</td>
+                      <td className="p-3 capitalize">{v.availability_status}</td>
+                      <td className="p-3">{v.is_published ? 'Yes' : 'No'}</td>
+                      <td className="p-3">{actionButtons(v)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
       <ConfirmDialog
-        open={Boolean(deleteId)}
+        open={Boolean(hideId)}
         title="Hide vehicle?"
-        message="The vehicle will be unpublished and hidden from the public site. Existing bookings are preserved."
+        message="The vehicle will be unpublished and hidden from the public site. Existing bookings are preserved. You can Show it again anytime."
         confirmLabel="Hide vehicle"
         danger
-        onCancel={() => setDeleteId(null)}
-        onConfirm={confirmDelete}
+        onCancel={() => setHideId(null)}
+        onConfirm={confirmHide}
       />
     </div>
   );
