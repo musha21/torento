@@ -13,6 +13,7 @@ export default defineConfig(() => {
         registerType: 'autoUpdate',
         injectRegister: 'auto',
         includeAssets: ['brand/torento-logo.png', 'robots.txt', 'sitemap.xml'],
+        manifestFilename: 'site.webmanifest',
         manifest: {
           name: 'TORENTO — Rent a Car & Bike in Sri Lanka',
           short_name: 'TORENTO',
@@ -53,6 +54,7 @@ export default defineConfig(() => {
         },
         workbox: {
           navigateFallback: '/index.html',
+          navigateFallbackDenylist: [/\.[a-zA-Z0-9]+$/],
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,jpg,jpeg,webp}'],
         },
         devOptions: {
